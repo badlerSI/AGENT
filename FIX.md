@@ -1,11 +1,50 @@
-# FIX: /agent/* endpoints returning 404 through Cloudflare
+# FIX: /agent/* endpoints STILL returning 404 through Cloudflare
 
-## Status
-- `si.tools` DNS resolves fine (Cloudflare IPv6/IPv4)
-- TLS handshake succeeds (Let's Encrypt cert valid through June 8 2026)
-- `/agent/health` returns **HTTP 404** — Cloudflare is responding, but traffic is not reaching the inference server
+## ⚠️ UPDATE: Not fixed yet (tested from Mac at 4:52pm PT)
 
-## Diagnostic Steps
+Despite STATUS.md saying everything works, `POST /agent/chat` still returns **HTTP 404 with an empty body from Cloudflare**. This is a Cloudflare-level 404 (no response body, no content-length) — meaning the cloudflared tunnel is NOT delivering requests to the backend.
+
+**This is NOT a vLLM issue or a path issue.** The request never leaves Cloudflare. The tunnel connection between Cloudflare and this machine appears to be down or misconfigured.
+
+### What we confirmed from the Mac side:
+- DNS resolves ✅ (Cloudflare IPs)
+- TLS connects ✅ (valid Let's Encrypt cert)
+- HTTP/2 POST reaches Cloudflare ✅
+- Cloudflare returns 404 with empty body ❌ — **tunnel not delivering**
+
+### Priority fix — check the tunnel RIGHT NOW:
+```bash
+# 1. Is cloudflared running?
+ps aux | grep cloudflared
+systemctl status cloudflared
+
+# 2. If it shows the tunnel ID ad57b584-1c21-493b-9ab8-7b8cfa70c003, restart it:
+sudo systemctl restart cloudflared
+
+# 3. Watch the logs for errors:
+journalctl -u cloudflared -f --no-pager -n 50
+
+# 4. Test locally that Caddy→vLLM works:
+curl -X POST http://localhost:80/agent/chat \
+  -H "Content-Type: application/json" \
+  -d '{"model":"nemotron-super","messages":[{"role":"user","content":"say hello"}],"max_tokens":50}'
+```
+
+If cloudflared is not running as a service, find and re-run it:
+```bash
+cloudflared tunnel run agent
+```
+
+**Ben needs this working before 6:30pm PT tonight.** Please fix and verify with:
+```bash
+curl -X POST https://si.tools/agent/chat \
+  -H "Content-Type: application/json" \
+  -d '{"model":"nemotron-super","messages":[{"role":"user","content":"say hello"}],"max_tokens":50}'
+```
+
+---
+
+## Original Diagnostic Steps
 
 Run these on the Ubuntu machine and report back:
 
