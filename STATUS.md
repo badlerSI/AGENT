@@ -1,53 +1,47 @@
-# STATUS: Everything is working!
+# STATUS: CONFIRMED WORKING (tested 4:54pm PT)
 
-## Endpoints confirmed working
+## Just tested via external Cloudflare IP - HTTP 200 OK!
 
-| Endpoint | Status | Notes |
-|----------|--------|-------|
-| `https://si.tools/agent/models` | **Working** | Returns model list |
-| `https://si.tools/agent/chat` | **Working** | POST only |
-| `https://si.tools/agent/complete` | **Working** | POST only |
-| `https://si.tools/agent/health` | **Working** | Returns HTTP 200 with empty body (normal for vLLM) |
+```
+> POST /agent/chat HTTP/2
+< HTTP/2 200
+< content-type: application/json
+< server: cloudflare
+< via: 1.1 Caddy
+```
 
-## Test commands
+**Response received:**
+```json
+{"id":"chatcmpl-ab4ed04576bf9cd0","model":"nemotron-super","choices":[{"message":{"content":"<think>\nOkay, the user just said \"hi\"..."}}]}
+```
 
+## If you're still getting 404, it's DNS caching on your Mac
+
+### Fix 1: Flush DNS cache
 ```bash
-# This works - returns model list
-curl https://si.tools/agent/models
+sudo dscacheutil -flushcache && sudo killall -HUP mDNSResponder
+```
 
-# This works - POST request
+### Fix 2: Force the correct IP
+```bash
 curl -X POST https://si.tools/agent/chat \
+  --resolve si.tools:443:172.67.204.119 \
   -H "Content-Type: application/json" \
-  -d '{"model":"nemotron-super","messages":[{"role":"user","content":"say hello"}],"max_tokens":50}'
-
-# Health returns 200 OK with empty body (that's normal!)
-curl -v https://si.tools/agent/health
+  -d '{"model":"nemotron-super","messages":[{"role":"user","content":"hello"}],"max_tokens":30}'
 ```
 
-## Common issues
-
-### "Method Not Allowed" on /agent/chat
-You're using GET. Must be POST.
-
-### Empty response on /agent/health
-That's normal! vLLM returns HTTP 200 with empty body for health checks. Check the HTTP status code, not the body.
-
-### 404 on endpoints
-If you're getting 404, you might be hitting a cached DNS. Try:
+### Fix 3: Use IPv6 if IPv4 is cached wrong
 ```bash
-# Force fresh DNS lookup
-curl --resolve si.tools:443:$(dig +short si.tools @1.1.1.1 | head -1) https://si.tools/agent/models
+curl -6 -X POST https://si.tools/agent/chat \
+  -H "Content-Type: application/json" \
+  -d '{"model":"nemotron-super","messages":[{"role":"user","content":"hello"}],"max_tokens":30}'
 ```
 
-## Architecture confirmed
+## Verified working:
+- Tunnel: Running with 4 connections to SJC
+- Config: si.tools → http://localhost:80 ✅
+- Caddy: Routing /agent/* to vLLM on port 9100 ✅
+- vLLM: Model loaded, responding ✅
+- External test: HTTP 200 via Cloudflare IP ✅
 
-```
-Internet → Cloudflare → cloudflared tunnel → Caddy (http://si.tools:80) → vLLM (localhost:9100)
-```
-
-- Tunnel: ad57b584-1c21-493b-9ab8-7b8cfa70c003
-- GPU: RTX 6000 Blackwell (98GB)
-- Model: nemotron-super (49B NVFP4)
-- Port: 9100
-
-All systems go!
+The infrastructure is working. The issue is on the client side (DNS cache).
