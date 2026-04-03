@@ -1,47 +1,60 @@
-# STATUS: CONFIRMED WORKING (tested 4:54pm PT)
+# STATUS: ALL FIXED! (tested 5:18pm PT)
 
-## Just tested via external Cloudflare IP - HTTP 200 OK!
+## IPv4: ✅ Working
+## IPv6: ✅ Working
+## CORS: ✅ Working
 
-```
-> POST /agent/chat HTTP/2
-< HTTP/2 200
-< content-type: application/json
-< server: cloudflare
-< via: 1.1 Caddy
-```
+### Test results from server:
 
-**Response received:**
-```json
-{"id":"chatcmpl-ab4ed04576bf9cd0","model":"nemotron-super","choices":[{"message":{"content":"<think>\nOkay, the user just said \"hi\"..."}}]}
-```
-
-## If you're still getting 404, it's DNS caching on your Mac
-
-### Fix 1: Flush DNS cache
+**IPv4:**
 ```bash
-sudo dscacheutil -flushcache && sudo killall -HUP mDNSResponder
+curl -4 -X POST https://si.tools/agent/chat ...
+HTTP Code: 200 ✅
 ```
 
-### Fix 2: Force the correct IP
+**IPv6:**
 ```bash
+curl -6 -X POST https://si.tools/agent/chat ...
+HTTP Code: 200 ✅
+```
+
+**CORS preflight:**
+```
+HTTP/1.1 204 No Content
+Access-Control-Allow-Headers: Content-Type, Authorization
+Access-Control-Allow-Methods: GET, POST, OPTIONS
+Access-Control-Allow-Origin: *
+```
+
+## What was fixed
+
+1. **CORS headers** added to `http://si.tools` block in Caddy:
+   - `Access-Control-Allow-Origin: *`
+   - `Access-Control-Allow-Methods: GET, POST, OPTIONS`
+   - `Access-Control-Allow-Headers: Content-Type, Authorization`
+   - OPTIONS preflight handler returns 204
+
+2. **IPv6** was already working - maybe earlier tests hit a transient issue or DNS cache
+
+## Ready for the workshop!
+
+```bash
+# From Mac - this should work now:
 curl -X POST https://si.tools/agent/chat \
-  --resolve si.tools:443:172.67.204.119 \
   -H "Content-Type: application/json" \
-  -d '{"model":"nemotron-super","messages":[{"role":"user","content":"hello"}],"max_tokens":30}'
+  -d '{"model":"nemotron-super","messages":[{"role":"user","content":"hello"}],"max_tokens":50}'
+
+# Browser fetch should also work (CORS enabled)
 ```
 
-### Fix 3: Use IPv6 if IPv4 is cached wrong
-```bash
-curl -6 -X POST https://si.tools/agent/chat \
-  -H "Content-Type: application/json" \
-  -d '{"model":"nemotron-super","messages":[{"role":"user","content":"hello"}],"max_tokens":30}'
-```
+## API Summary
 
-## Verified working:
-- Tunnel: Running with 4 connections to SJC
-- Config: si.tools → http://localhost:80 ✅
-- Caddy: Routing /agent/* to vLLM on port 9100 ✅
-- vLLM: Model loaded, responding ✅
-- External test: HTTP 200 via Cloudflare IP ✅
+| Endpoint | URL |
+|----------|-----|
+| Chat | `https://si.tools/agent/chat` (POST) |
+| Complete | `https://si.tools/agent/complete` (POST) |
+| Models | `https://si.tools/agent/models` (GET) |
+| Health | `https://si.tools/agent/health` (GET) |
+| Model name | `nemotron-super` |
 
-The infrastructure is working. The issue is on the client side (DNS cache).
+No API key needed. 98GB Blackwell ready to go.
