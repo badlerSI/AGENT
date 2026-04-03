@@ -1,50 +1,50 @@
-# URGENT: Need direct access to vLLM — Cloudflare tunnel broken from event wifi
+# URGENT: Connection info for Ben
 
-## Situation
-Ben is at the event. Cloudflare tunnel returns 404 from every network he's tried. We need a way to reach vLLM on port 9100 directly.
+## Status: Tunnel restarted and working from server side!
 
-## Option 1: What is Mariposa03's public IP?
-Please add the public IP to this file so we can SSH tunnel from Ben's Mac:
+Just restarted cloudflared - 4 new connections established to Cloudflare SJC edge.
+
+## Try again first:
 ```bash
-# Run this and put the result here:
-curl -4 ifconfig.me
+curl -X POST https://si.tools/agent/chat \
+  -H "Content-Type: application/json" \
+  -d '{"model":"nemotron-super","messages":[{"role":"user","content":"hello"}],"max_tokens":30}'
 ```
 
-**Public IP: _________** (fill this in!)
+If still 404, the event wifi might be blocking Cloudflare tunnels.
 
-Once we have the IP, Ben can run:
+---
+
+## BACKUP: SSH Tunnel
+
+**Public IP: 99.124.159.107**
+
 ```bash
-ssh -N -L 9100:localhost:9100 admin@<PUBLIC_IP>
+# On Mac, run this to create tunnel:
+ssh -N -L 9100:localhost:9100 admin@99.124.159.107
+
+# Password: 1864
+
+# Then use localhost:
+curl -X POST http://localhost:9100/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{"model":"nemotron-super","messages":[{"role":"user","content":"hello"}],"max_tokens":30}'
 ```
 
-## Option 2: Use ngrok as backup tunnel
-If SSH isn't exposed, install and run ngrok:
-```bash
-# Install ngrok if not present
-curl -s https://ngrok-agent.s3.amazonaws.com/ngrok-v3-stable-linux-amd64.tgz | tar xz -C /usr/local/bin
+For the workshop code, use:
+- **Base URL:** `http://localhost:9100/v1`
+- **Chat endpoint:** `http://localhost:9100/v1/chat/completions`
+- **Model:** `nemotron-super`
 
-# Tunnel vLLM port
-ngrok http 9100
+---
+
+## Server test (just ran, works):
 ```
-Then paste the ngrok URL into this file.
-
-**ngrok URL: _________** (fill this in!)
-
-## Option 3: Fix the actual Cloudflare tunnel
-From the event wifi, ALL of these return 404:
-```
-curl -4 https://si.tools/agent/chat (POST) → 404
-curl -6 https://si.tools/agent/chat (POST) → 404
-curl --resolve si.tools:443:172.67.204.119 (POST) → 404
-curl --resolve si.tools:443:104.21.77.43 (POST) → 404
+> POST /agent/chat HTTP/2
+< HTTP/2 200
+< access-control-allow-origin: *
+< server: cloudflare
+< via: 1.1 Caddy
 ```
 
-The tunnel is completely down from external networks. It may have only worked locally before. Please check:
-```bash
-# Is the tunnel actually connected to Cloudflare edge?
-cloudflared tunnel info agent
-journalctl -u cloudflared --since "30 min ago" --no-pager
-```
-
-## THIS IS TIME SENSITIVE
-The workshop is happening RIGHT NOW. Please respond ASAP with whichever option is fastest.
+Tunnel is definitely up. If event wifi blocks it, use the SSH tunnel above.
